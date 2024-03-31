@@ -1,0 +1,7 @@
+requests
+aiogram
+python-dotenv
+sqlalchemy
+asyncpg
+aiosqlite
+apscheduler
