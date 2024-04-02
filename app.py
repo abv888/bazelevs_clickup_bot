@@ -41,7 +41,7 @@ def get_all_tasks(token, assignee_id):
         'Authorization': token,
     }
     params = {
-        # 'assignees[]': assignee_id
+        'assignees[]': assignee_id
     }
     response = requests.get(f'https://api.clickup.com/api/v2/team/{team_id}/task', headers=headers, params=params)
     if response.status_code == 200:
@@ -62,7 +62,8 @@ def get_today_tasks(token, assignee_id):
     # Формируем параметры запроса для фильтрации по дате и team_id
     params = {
         'due_date_gt': today_start_unix,
-        'due_date_lt': today_end_unix
+        'due_date_lt': today_end_unix,
+        'assignees[]': assignee_id,
     }
     response = requests.get(f'https://api.clickup.com/api/v2/team/{team_id}/task', headers=headers, params=params)
     if response.status_code == 200:
@@ -85,7 +86,7 @@ def get_tasks_for_week(token, assignee_id):
     params = {
         'due_date_gt': start_unix,
         'due_date_lt': end_unix,
-        # 'assignees[]': assignee_id,
+        'assignees[]': assignee_id,
     }
     response = requests.get(f'https://api.clickup.com/api/v2/team/{team_id}/task', headers=headers, params=params)
     if response.status_code == 200:
@@ -115,7 +116,7 @@ def get_meetings_for_week(token, assignee_id):
         'due_date_gt': start_unix,
         'due_date_lt': end_unix,
         'list_ids[]': meetings_id,
-        # 'assignees[]': assignee_id,
+        'assignees[]': assignee_id,
     }
     response = requests.get(f'https://api.clickup.com/api/v2/team/{team_id}/task', headers=headers, params=params)
     if response.status_code == 200:
@@ -136,7 +137,7 @@ def get_overdue_tasks(token, assignee_id):
     }
     params = {
         'due_date_lt': int(datetime.now().timestamp() * 1000),
-        # 'assignees[]': assignee_id,
+        'assignees[]': assignee_id,
     }
     response = requests.get(f'https://api.clickup.com/api/v2/team/{team_id}/task', headers=headers, params=params)
     if response.status_code == 200:
@@ -150,7 +151,7 @@ def get_meetings(token, assignee_id):
         'Authorization': token,
     }
     params = {
-        # 'assignees[]': assignee_id,
+        'assignees[]': assignee_id,
         'list_ids[]': meetings_id
     }
     response = requests.get(f'https://api.clickup.com/api/v2/team/{team_id}/task', headers=headers, params=params)
@@ -172,7 +173,7 @@ def get_today_meetings(token, assignee_id):
     params = {
         'due_date_gt': today_start_unix,
         'due_date_lt': today_end_unix,
-        # 'assignees[]': assignee_id,
+        'assignees[]': assignee_id,
         'list_ids[]': meetings_id
     }
     response = requests.get(f'https://api.clickup.com/api/v2/team/{team_id}/task', headers=headers, params=params)
@@ -201,56 +202,69 @@ def format_meeting_message(meeting):
 
 
 def format_tasks_message(grouped_tasks):
-    message = "Задачи на неделю:\n\n"
-    today = datetime.today().date()
-    for date, tasks in sorted(grouped_tasks.items()):
-        if date == today:
-            message += f"Сегодня:\n"
-        elif date == today + timedelta(days=1):
-            message += f"Завтра:\n"
-        else:
-            message += f"{date.strftime('%d.%m.%Y')}:\n"
-        for task in tasks:
-            task_link = f"https://app.clickup.com/t/{task['id']}"
-            task_name = task['name']
-            message += f"- [{task_name}]({task_link})\n"
-        message += "\n"
-        message += "\n"
-    return message
+    if grouped_tasks:
+        message = "Задачи на неделю:\n\n"
+        today = datetime.today().date()
+        for date, tasks in sorted(grouped_tasks.items()):
+            if date == today:
+                message += f"Сегодня:\n"
+            elif date == today + timedelta(days=1):
+                message += f"Завтра:\n"
+            else:
+                message += f"{date.strftime('%d.%m.%Y')}:\n"
+            for task in tasks:
+                task_link = f"https://app.clickup.com/t/{task['id']}"
+                task_name = task['name']
+                message += f"- [{task_name}]({task_link})\n"
+            message += "\n"
+            message += "\n"
+        return message
+    else:
+        return "Нет задач на неделю."
 
 
 def format_meetings_message(grouped_meetings):
-    message = "Встречи на неделю:\n\n"
-    today = datetime.today().date()
-    for date, meetings in sorted(grouped_meetings.items()):
-        if date == today:
-            message += f"Сегодня:\n"
-        elif date == today + timedelta(days=1):
-            message += f"Завтра:\n"
-        else:
-            message += f"{date.strftime('%d.%m.%Y')}:\n"
-        for meeting in meetings:
-            formatted_due_date = "срок не указан"
-            task_link = f"https://app.clickup.com/t/{meeting['id']}"
-            task_name = meeting['name']
-            if meeting['due_date']:
-                due_date = datetime.fromtimestamp(int(meeting['due_date']) / 1000)
-                formatted_due_date = due_date.strftime('%H:%M')
-            message += f"- [{task_name}]({task_link}) - [{formatted_due_date}]\n"
-        message += "\n"
-        message += "\n"
-    return message
+    if grouped_meetings:
+        message = "Встречи на неделю:\n\n"
+        today = datetime.today().date()
+        for date, meetings in sorted(grouped_meetings.items()):
+            if date == today:
+                message += f"Сегодня:\n"
+            elif date == today + timedelta(days=1):
+                message += f"Завтра:\n"
+            else:
+                message += f"{date.strftime('%d.%m.%Y')}:\n"
+            for meeting in meetings:
+                formatted_due_date = "срок не указан"
+                task_link = f"https://app.clickup.com/t/{meeting['id']}"
+                task_name = meeting['name']
+                if meeting['due_date']:
+                    due_date = datetime.fromtimestamp(int(meeting['due_date']) / 1000)
+                    formatted_due_date = due_date.strftime('%H:%M')
+                message += f"- [{task_name}]({task_link}) - [{formatted_due_date}]\n"
+            message += "\n"
+            message += "\n"
+        return message
+    else:
+        return "Нет встреч на неделе."
 
 
 async def send_tasks(user: User):
     tasks = get_all_tasks(token=user.clickup_api_token, assignee_id=user.clickup_id)
     if tasks:
         message = f"У вас {len(tasks)} задач:\n"
-        for index, task in enumerate(tasks):
-            message += format_task_message(task) + "\n"
-            if index % 20 == 0 and index != 0:
-                await bot.send_message(user.telegram_id, message, parse_mode="Markdown")
-                message = ""
+        print(len(tasks))
+        if len(tasks) > 20:
+            for index, task in enumerate(tasks):
+                message += format_task_message(task) + "\n"
+                if index % 20 == 0 and index != 0:
+                    await bot.send_message(user.telegram_id, message, parse_mode="Markdown")
+                    message = ""
+        else:
+            message = f"У вас {len(tasks)} задач:\n"
+            for task in tasks:
+                message += format_task_message(task) + "\n"
+            await bot.send_message(user.telegram_id, message, parse_mode="Markdown")
     else:
         await bot.send_message(user.telegram_id, "Нет задач")
 
@@ -276,7 +290,7 @@ async def send_daily_meeting_report_notification(user: User):
             message += f"- [{meeting['name']}]({meeting_link})\n" + "\n"
         await bot.send_message(user.telegram_id, message, parse_mode="Markdown")
     else:
-        pass
+        await bot.send_message(user.telegram_id, "Нет встреч", parse_mode="Markdown")
 
 
 async def check_meetings_start():
@@ -453,7 +467,6 @@ async def send_tasks_week_handler(message: types.Message, session: AsyncSession)
 async def send_tasks_overdue_handler(message: types.Message, session: AsyncSession):
     user = await orm_get_user(session=session, user_id=message.from_user.id)
     if user:
-        # await send_tasks(user)
         await send_overdue_tasks_reminder(user)
     else:
         await message.answer("Нет доступа.")
@@ -485,6 +498,20 @@ async def send_daily_meeting_reports_handler(message: types.Message, session: As
         await send_daily_meeting_report_notification(user)
     else:
         await message.answer("Нет доступа.")
+
+
+@dp.message(Command('help'))
+async def help_handler(message: types.Message):
+    await message.answer(text="/start - запустить бота" +"\n" 
+                            "/help - получить справку по команлам бота" +"\n" 
+                                "/tasks - получить список всех задач" +"\n" 
+                                "/overdued_tasks - получить список просроченных задач" +"\n" 
+                                "/tasks_day - получить список задач на день" +"\n" 
+                                "/tasks_week - получить список задач на неделю" +"\n" 
+                                "/meetings - получить список всех встреч" +"\n" 
+                                "/contract_report - Получить список встреч для заполнения контракт-репортов"
+
+                         )
 
 
 async def on_startup(bot):
