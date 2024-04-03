@@ -124,7 +124,7 @@ def get_meetings_for_week(token, assignee_id):
         # Группируем задачи по датам
         grouped_meetings = defaultdict(list)
         for meeting in meetings:
-            due_date = datetime.fromtimestamp(int(meeting['due_date']) / 1000).date()
+            due_date = datetime.fromtimestamp(int(meeting['start_date']) / 1000).date()
             grouped_meetings[due_date].append(meeting)
         return grouped_meetings
     else:
@@ -194,8 +194,8 @@ def format_task_message(task):
 
 def format_meeting_message(meeting):
     formatted_due_date = "срок не указан"
-    if meeting['due_date']:
-        due_date = datetime.fromtimestamp(int(meeting['due_date']) / 1000)
+    if meeting['start_date']:
+        due_date = datetime.fromtimestamp(int(meeting['start_date']) / 1000)
         formatted_due_date = due_date.strftime('%d.%m.%Y %H:%M')
     meeting_link = f"https://app.clickup.com/t/{meeting['id']}"
     return f"- [{meeting['name']}]({meeting_link}) - [{formatted_due_date}] \n"
@@ -238,8 +238,8 @@ def format_meetings_message(grouped_meetings):
                 formatted_due_date = "срок не указан"
                 task_link = f"https://app.clickup.com/t/{meeting['id']}"
                 task_name = meeting['name']
-                if meeting['due_date']:
-                    due_date = datetime.fromtimestamp(int(meeting['due_date']) / 1000)
+                if meeting['start_date']:
+                    due_date = datetime.fromtimestamp(int(meeting['start_date']) / 1000)
                     formatted_due_date = due_date.strftime('%H:%M')
                 message += f"- [{task_name}]({task_link}) - [{formatted_due_date}]\n"
             message += "\n"
@@ -295,25 +295,20 @@ async def send_daily_meeting_report_notification(user: User):
 
 async def check_meetings_start():
     async with session:
-        while True:
-            all_users = await orm_get_all_users(session)
-            if all_users:
-                for user in all_users:
-                    meetings = get_today_meetings(token=user.clickup_api_token, assignee_id=user.clickup_id)
-                    if meetings:
-                        now = datetime.now()
-                        for meeting in meetings:
-                            meeting_time = datetime.fromtimestamp(int(meeting['start_date']) / 1000)
-                            if meeting_time - now <= timedelta(minutes=15):
-                                if meeting_time - now == timedelta(minutes=0):
-                                    await send_meeting_online_reminder(user_id=user.telegram_id, meeting=meeting)
-                                else:
-                                    await send_meeting_start_reminder(user_id=user.telegram_id, meeting=meeting)
-                                    await asyncio.sleep((meeting_time - now).total_seconds())
-                    else:
-                        pass
-            else:
-                pass
+        all_users = await orm_get_all_users(session)
+        if all_users:
+            for user in all_users:
+                meetings = get_today_meetings(token=user.clickup_api_token, assignee_id=user.clickup_id)
+                if meetings:
+                    now = datetime.now()
+                    for meeting in meetings:
+                        meeting_time = datetime.fromtimestamp(int(meeting['start_date']) / 1000)
+                        if timedelta(minutes=15) <= meeting_time - now <= timedelta(minutes=16):
+                            await send_meeting_start_reminder(user_id=user.telegram_id, meeting=meeting)
+                        if timedelta(minutes=0) <= meeting_time - now <= timedelta(minutes=1):
+                            await send_meeting_online_reminder(user_id=user.telegram_id, meeting=meeting)
+                else:
+                    pass
 
 
 async def send_meeting_start_reminder(user_id, meeting):
@@ -530,7 +525,7 @@ scheduler = AsyncIOScheduler()
 scheduler.add_job(send_daily_morning_notifications, "cron", day_of_week="mon-sun", hour=8, minute=0)
 scheduler.add_job(send_daily_evening_notifications, "cron", day_of_week="mon-sun", hour=21, minute=0)
 scheduler.add_job(send_evening_meetings_report_notifications, "cron", day_of_week="mon-sun", hour=22, minute=0)
-# scheduler.add_job(check_meetings_start, 'interval', seconds=1)
+scheduler.add_job(check_meetings_start, 'interval', seconds=60)
 
 
 async def main():
